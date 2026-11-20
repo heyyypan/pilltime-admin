@@ -16,7 +16,7 @@
 
   /* ───── Gitee 接口 ───── */
   function b64e(s) { return btoa(unescape(encodeURIComponent(s))); }
-  function b64d(s) { return decodeURIComponent(escape(atob(String(s).replace(/\s/g, '')))); }
+  function b64d(s) { s = String(s || '').replace(/\s/g, ''); return s ? decodeURIComponent(escape(atob(s))) : ''; }
   function url(path) { return (conn.api || DEF_API).replace(/\/$/, '') + '/repos/' + conn.repo + '/contents/' + path; }
   function httpErr(r, body) { var e = new Error('HTTP ' + r.status); e.status = r.status; e.body = body; return e; }
   function describe(e) {
@@ -31,6 +31,8 @@
     if (r.status === 404) return null;
     if (!r.ok) throw httpErr(r, await r.text());
     var j = await r.json();
+    // Gitee:文件不存在时返回 200 + 空数组 [];路径是目录时也返回数组,都按"没有这个文件"处理
+    if (!j || Array.isArray(j) || !j.content) return null;
     return { content: b64d(j.content), sha: j.sha };
   }
   async function writeFile(path, text, sha) {
