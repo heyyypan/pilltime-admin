@@ -192,7 +192,7 @@
   }
 
   function monthCard() {
-    var t = today(), days = [], need = {}, offs = [], ons = [], prev = null, i, d, ph;
+    var t = today(), days = [], need = {}, nd = {}, qd = {}, offs = [], ons = [], prev = null, i, d, ph;
     var st = C.drugStatuses(S, t);
     for (i = 0; i < 30; i++) {
       d = C.addDays(t, i); ph = C.phase(S, d);
@@ -200,7 +200,7 @@
       if (prev && prev !== 'n') { if (prev === 'on' && days[i].st === 'off') offs.push(d); if (prev === 'off' && days[i].st === 'on') ons.push(d); }
       prev = days[i].st;
       if (i === 0 && C.isTaken(S, d)) continue;
-      C.dueDrugs(S, d).forEach(function (x) { need[x.id] = (need[x.id] || 0) + x.qty; });
+      C.dueDrugs(S, d).forEach(function (x) { need[x.id] = (need[x.id] || 0) + x.qty; nd[x.id] = (nd[x.id] || 0) + 1; qd[x.id] = x.qty; });
     }
     var h = '<div class="card"><h2><i></i>未来一个月用药情况</h2><div class="note">从今天起 30 天。紫色是用药日,绿色是停药休息日。</div>';
     h += '<div class="mgrid">' + '一二三四五六日'.split('').map(function (x) { return '<div class="wh">' + x + '</div>'; }).join('');
@@ -215,10 +215,10 @@
     offs.forEach(function (x) { ev.push('<b>' + md(x) + '</b> 开始停药休息'); });
     ons.forEach(function (x) { ev.push('<b>' + md(x) + '</b> 恢复用药'); });
     if (ev.length) h += '<div class="sub" style="color:var(--ink)">' + ev.join('<br>') + '</div>';
-    h += '<div class="lab" style="margin-top:14px">未来 30 天要吃多少药?家里够不够?</div>';
+    h += '<div class="note" style="margin-top:14px">停药休息的日子不吃瑞波西利,所以不是整整 30 天都要吃;今天如果已经打卡,今天就不再算。</div><div class="lab" style="margin-top:0">要准备多少药(按今天起 30 天算)</div>';
     st.forEach(function (x) {
       var n = need[x.id] || 0, ok = x.tracked ? x.stock >= n : null;
-      h += row(esc(x.name), '', '<div class="need"><div>30 天共吃 <b>' + n + '</b> 粒</div><div>' + (x.tracked ? '家里现有 ' + x.stock + ' 粒 ' + (ok ? '<span class="tag ok">够吃</span>' : '<span class="tag miss">还差 ' + (n - x.stock) + ' 粒,要去开药</span>') : '<span class="tag none">还没填现有药量</span>') + '</div></div>');
+      h += row(esc(x.name), '', '<div class="need"><div>每天 ' + (qd[x.id] || x.qty) + ' 粒 × ' + (nd[x.id] || 0) + ' 个吃药日 = <b>' + n + '</b> 粒</div><div>' + (x.tracked ? '家里现有 ' + x.stock + ' 粒 ' + (ok ? '<span class="tag ok">够吃</span>' : '<span class="tag miss">还差 ' + (n - x.stock) + ' 粒,要去开药</span>') : '<span class="tag none">还没填现有药量</span>') + '</div></div>');
     });
     return h + '</div>';
   }
