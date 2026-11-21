@@ -304,7 +304,10 @@
         }
       }
     }
-    return { followMin: st.followMin, followMax: st.followMax, alarmMode: st.alarmMode !== false, snoozeMin: st.snoozeMin || 10, alarms: alarms };
+    // 今天的吃药提醒(即使时间已过也带上):手机关机/应用被清后,开机补提醒要用
+    var td = null, dueT = dueDrugs(S, today);
+    if (dueT.length && !isTaken(S, today)) td = { day: today, at: atTime(today, st.remindTime), text: remindText(S, today) };
+    return { today: td, followMin: st.followMin, followMax: st.followMax, alarmMode: st.alarmMode !== false, snoozeMin: st.snoozeMin || 10, alarms: alarms };
   }
 
   return {
