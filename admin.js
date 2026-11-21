@@ -12,11 +12,11 @@
   var DEF_API = 'https://gitee.com/api/v5';
   var conn = null;
   try { conn = JSON.parse(localStorage.getItem('pa_conn') || 'null'); } catch (e) {}
-  var client = null, adminDoc = null, S = null, loadedAt = 0, err = '', busy = false, dirty = false, formStarts = [], timer = null;
+  var client = null, adminDoc = null, S = null, loadedAt = 0, err = '', busy = !!conn, booting = !!conn, dirty = false, formStarts = [], timer = null;
 
   /* ───── Gitee 接口 ───── */
   function b64e(s) { return btoa(unescape(encodeURIComponent(s))); }
-  function b64d(s) { s = String(s || '').replace(/\s/g, ''); return s ? decodeURIComponent(escape(atob(s))) : ''; }
+  function b64d(s) { s = String(s == null ? '' : s).replace(/\s/g, ''); return s ? decodeURIComponent(escape(atob(s))) : ''; }
   function url(path) { return (conn.api || DEF_API).replace(/\/$/, '') + '/repos/' + conn.repo + '/contents/' + path; }
   function httpErr(r, body) { var e = new Error('HTTP ' + r.status); e.status = r.status; e.body = body; return e; }
   function describe(e) {
@@ -31,8 +31,8 @@
     if (r.status === 404) return null;
     if (!r.ok) throw httpErr(r, await r.text());
     var j = await r.json();
-    // Gitee:文件不存在时返回 200 + 空数组 [];路径是目录时也返回数组,都按"没有这个文件"处理
-    if (!j || Array.isArray(j) || !j.content) return null;
+    // Gitee 文件不存在时返回 200 + [](不是 404);空数组、没有 content 都当作“文件不存在”
+    if (!j || Array.isArray(j) || typeof j.content !== 'string' || !j.content.replace(/\s/g, '')) return null;
     return { content: b64d(j.content), sha: j.sha };
   }
   async function writeFile(path, text, sha) {
@@ -69,7 +69,7 @@
       err = ''; loadedAt = Date.now();
       formStarts = null;
     } catch (e) { err = describe(e); }
-    busy = false; render();
+    busy = false; booting = false; render();
   }
 
   var pendingOps = function () { var ap = (S && S.applied) || []; return (adminDoc ? adminDoc.ops : []).filter(function (o) { return ap.indexOf(o.id) < 0; }); };
@@ -89,6 +89,9 @@
   var ICON_R = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>';
   var ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg>';
 
+  function renderLoading() {
+    return '<div class="loading"><div class="spin"></div><div>正在读取数据…</div></div>';
+  }
   function renderLogin() {
     var c = conn || { repo: '', token: '', api: DEF_API };
     return '<div class="login"><div class="card"><div class="logo">' + LOGO + '</div><h1>家人用药 · 管理端</h1>' +
@@ -111,34 +114,34 @@
     else a = ['未打卡(等待中)', 'a', '应吃:' + C.doseList(due)];
     // 周期
     if (ph.before) b = ['周期还没开始', 'p', cyc + ' 从 ' + md(S.settings.cycleStarts.slice().sort()[0] || t) + ' 开始'];
-    else if (ph.on) b = [cyc + ' 第' + ph.cycleDay + '天(用药期)', 'p', ev.offStart ? '还有 ' + C.diffDays(ev.offStart, t) + ' 天进入停药休息期(' + md(ev.offStart) + ')' : '用药期'];
-    else b = [cyc + ' 停药期 第' + (ph.cycleDay - S.settings.onDays) + '天', 'g', ev.onStart ? md(ev.onStart) + ' 恢复用药(还有 ' + C.diffDays(ev.onStart, t) + ' 天)' : '停药期'];
+    else if (ph.on) b = [cyc + ' 第<span class="nn">' + ph.cycleDay + '</span>天(用药期)', 'p', ev.offStart ? '还有 ' + C.diffDays(ev.offStart, t) + ' 天进入停药休息期(' + md(ev.offStart) + ')' : '用药期'];
+    else b = [cyc + ' 停药期 第<span class="nn">' + (ph.cycleDay - S.settings.onDays) + '</span>天', 'g', ev.onStart ? md(ev.onStart) + ' 恢复用药(还有 ' + C.diffDays(ev.onStart, t) + ' 天)' : '停药期'];
     // 拿药
     var st = C.drugStatuses(S, t), low = st.filter(function (x) { return x.tracked && x.low; }), tr = st.filter(function (x) { return x.tracked; });
     if (low.length) c = ['⚠ 需提前去医院开药', 'r', low.map(function (x) { return x.name + (x.doseDays ? '仅剩 ' + x.doseDays + ' 天药量' : '已经不够吃'); }).join(';')];
     else if (tr.length) c = ['药量充足 ✓', 'g', tr.map(function (x) { return x.name + '够吃 ' + x.doseDays + ' 天'; }).join(';')];
     else c = ['没有记录药量', 'a', '在下面「药量」里填一下现有药量'];
     return [['今日家人打卡状态', a], ['当前用药周期阶段', b], ['处方拿药预警', c]].map(function (x) {
-      return '<div class="card s"><div class="k">' + x[0] + '</div><div class="big ' + x[1][1] + '">' + esc(x[1][0]) + '</div><div class="sub">' + esc(x[1][2]) + '</div></div>';
+      return '<div class="card s"><div class="k">' + x[0] + '</div><div class="big ' + x[1][1] + '">' + (x[1][0].indexOf('<span class="nn">') >= 0 ? x[1][0].replace(/<span class="nn">(\d+)<\/span>/, '\u0001$1\u0002').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\u0001/g, '<span class="nn">').replace(/\u0002/g, '</span>') : esc(x[1][0])) + '</div><div class="sub">' + esc(x[1][2]) + '</div></div>';
     }).join('');
   }
 
   function logTable() {
     var t = today(), pend = pendingOps().filter(function (o) { return o.type === 'setLog'; }), rows = '';
-    for (var i = 0; i < 14; i++) {
-      var d = C.addDays(t, -i);
-      if (d < (S.first || t) && i > 0) break;
+    for (var i = 0; i < 7; i++) {
+      var d = C.addDays(t, -i), pre = d < (S.first || t);
       var due = C.dueDrugs(S, d), taken = C.isTaken(S, d), p = pend.filter(function (o) { return o.day === d; }).pop();
       var tag, btn = '';
-      if (!due.length) tag = '<span class="tag none">无需服药</span>';
+      if (!due.length) tag = '<span class="tag none">' + (pre ? '无记录' : '无需服药') + '</span>';
       else if (taken) tag = '<span class="tag ok">已打卡' + (firstTs(d) ? ' ' + esc(firstTs(d)) : '') + '</span>';
+      else if (pre) tag = '<span class="tag none">无记录</span>';
       else if (d === t) tag = '<span class="tag wait">未打卡</span>';
       else tag = '<span class="tag miss">漏服</span>';
       if (due.length) btn = '<button class="btn g sm" data-act="toggle" data-day="' + d + '" data-to="' + (taken ? 0 : 1) + '">' + (taken ? '撤销打卡' : '补记打卡') + '</button>';
       if (p) tag += '<span class="pend">待手机同步:' + (p.taken ? '已打卡' : '未打卡') + '</span>';
       rows += '<tr><td class="dc"><b>' + (i === 0 ? '今天' : i === 1 ? '昨天' : md(d)) + '</b><div class="sub" style="margin:2px 0 0;white-space:nowrap">' + md(d) + ' ' + wk(d) + '</div><div class="sub" style="margin:3px 0 0">' + (due.length ? esc(due.map(function (x) { return x.name + x.qty + '粒'; }).join('、')) : '今天不用吃药') + '</div></td><td>' + tag + (btn ? '<div style="margin-top:8px">' + btn + '</div>' : '') + '</td></tr>';
     }
-    return '<div class="card"><h2><i></i>最近打卡记录</h2><div class="note">家人忘了点或点错了,可以在这里直接改。改完等手机同步后生效(药量会自动加减)。</div>' +
+    return '<div class="card"><h2><i></i>最近七天打卡记录</h2><div class="note">家人忘了点或点错了,可以在这里直接改。改完等手机同步后生效(药量会自动加减)。</div>' +
       '<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>日期 / 应服药</th><th style="text-align:left;border-radius:0 12px 12px 0">状态 / 调整</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
   }
 
@@ -188,6 +191,38 @@
     return h;
   }
 
+  function monthCard() {
+    var t = today(), days = [], need = {}, offs = [], ons = [], prev = null, i, d, ph;
+    var st = C.drugStatuses(S, t);
+    for (i = 0; i < 30; i++) {
+      d = C.addDays(t, i); ph = C.phase(S, d);
+      days.push({ d: d, st: ph.before ? 'n' : ph.on ? 'on' : 'off' });
+      if (prev && prev !== 'n') { if (prev === 'on' && days[i].st === 'off') offs.push(d); if (prev === 'off' && days[i].st === 'on') ons.push(d); }
+      prev = days[i].st;
+      if (i === 0 && C.isTaken(S, d)) continue;
+      C.dueDrugs(S, d).forEach(function (x) { need[x.id] = (need[x.id] || 0) + x.qty; });
+    }
+    var h = '<div class="card"><h2><i></i>未来一个月用药情况</h2><div class="note">从今天起 30 天。紫色是用药日,绿色是停药休息日。</div>';
+    h += '<div class="mgrid">' + '一二三四五六日'.split('').map(function (x) { return '<div class="wh">' + x + '</div>'; }).join('');
+    var off = (C.dparse(days[0].d).getDay() + 6) % 7;
+    for (i = 0; i < off; i++) h += '<div></div>';
+    days.forEach(function (x) {
+      var mk = offs.indexOf(x.d) >= 0 ? '<em>停药</em>' : ons.indexOf(x.d) >= 0 ? '<em>恢复</em>' : '';
+      h += '<div class="md ' + x.st + (x.d === t ? ' today' : '') + '"><b>' + Number(x.d.slice(8)) + '</b>' + mk + '</div>';
+    });
+    h += '</div><div class="legend"><span><i class="lg on"></i>用药</span><span><i class="lg off"></i>停药</span></div>';
+    var ev = [];
+    offs.forEach(function (x) { ev.push('<b>' + md(x) + '</b> 开始停药休息'); });
+    ons.forEach(function (x) { ev.push('<b>' + md(x) + '</b> 恢复用药'); });
+    if (ev.length) h += '<div class="sub" style="color:var(--ink)">' + ev.join('<br>') + '</div>';
+    h += '<div class="lab" style="margin-top:14px">30 天需要的药量 / 现有库存</div>';
+    st.forEach(function (x) {
+      var n = need[x.id] || 0, ok = x.tracked ? x.stock >= n : null;
+      h += row(esc(x.name), '', '<b>需 ' + n + ' 粒</b> · ' + (x.tracked ? '现有 ' + x.stock + ' 粒 ' + (ok ? '<span class="tag ok">够</span>' : '<span class="tag miss">差 ' + (n - x.stock) + ' 粒</span>') : '<span class="tag none">没记录药量</span>'));
+    });
+    return h + '</div>';
+  }
+
   function syncCard() {
     var po = pendingOps(), at = client && client.at ? Date.parse(client.at) : 0;
     return '<div class="card"><h2><i></i>同步状态</h2>' +
@@ -206,13 +241,13 @@
       (!client && !err ? '<div class="card stale"><div class="big a">等待手机第一次同步</div><div class="sub">在家人手机 App 的「设置 → 与后台同步」里填同一个仓库和令牌,点「保存并同步」,这里就会出现数据。</div></div>' : '') +
       (stale ? '<div class="card stale"><div class="sub" style="margin:0">手机已经 ' + ago(at) + ' 没同步了(可能没开 App 或没网),下面是它上次同步时的数据。</div></div>' : '') +
       '<div class="cards3">' + summary() + '</div>' +
-      '<div class="two"><div>' + logTable() + syncCard() + '</div><div>' + stockCard() + cfgCard() + '</div></div>' +
+      '<div class="two"><div>' + logTable() + syncCard() + monthCard() + '</div><div>' + stockCard() + cfgCard() + '</div></div>' +
       '<div class="foot">管理端 v' + VER + ' · 数据存放在你的 Gitee 私有仓库</div>';
   }
 
   function render() {
     var app = $('app');
-    app.innerHTML = (conn && S) ? renderMain() : renderLogin();
+    app.innerHTML = (conn && S) ? renderMain() : booting ? renderLoading() : renderLogin();
   }
 
   /* ───── 操作 ───── */
