@@ -114,8 +114,8 @@
     else a = ['未打卡(等待中)', 'a', '应吃:' + C.doseList(due)];
     // 周期
     if (ph.before) b = ['周期还没开始', 'p', cyc + ' 从 ' + md(S.settings.cycleStarts.slice().sort()[0] || t) + ' 开始'];
-    else if (ph.on) b = [cyc + ' 第<span class="nn">' + ph.cycleDay + '</span>天(用药期)', 'p', ev.offStart ? '还有 ' + C.diffDays(ev.offStart, t) + ' 天进入停药休息期(' + md(ev.offStart) + ')' : '用药期'];
-    else b = [cyc + ' 停药期 第<span class="nn">' + (ph.cycleDay - S.settings.onDays) + '</span>天', 'g', ev.onStart ? md(ev.onStart) + ' 恢复用药(还有 ' + C.diffDays(ev.onStart, t) + ' 天)' : '停药期'];
+    else if (ph.on) b = [cyc + '·第<span class="nn">' + ph.cycleDay + '</span>天(用药期)', 'p', ev.offStart ? '还有 ' + C.diffDays(ev.offStart, t) + ' 天进入停药休息期(' + md(ev.offStart) + ')' : '用药期'];
+    else b = [cyc + '·停药期·第<span class="nn">' + (ph.cycleDay - S.settings.onDays) + '</span>天', 'g', ev.onStart ? md(ev.onStart) + ' 恢复用药(还有 ' + C.diffDays(ev.onStart, t) + ' 天)' : '停药期'];
     // 拿药
     var st = C.drugStatuses(S, t), low = st.filter(function (x) { return x.tracked && x.low; }), tr = st.filter(function (x) { return x.tracked; });
     if (low.length) c = ['⚠ 需提前去医院开药', 'r', low.map(function (x) { return x.name + (x.doseDays ? '仅剩 ' + x.doseDays + ' 天药量' : '已经不够吃'); }).join(';')];
@@ -215,10 +215,10 @@
     offs.forEach(function (x) { ev.push('<b>' + md(x) + '</b> 开始停药休息'); });
     ons.forEach(function (x) { ev.push('<b>' + md(x) + '</b> 恢复用药'); });
     if (ev.length) h += '<div class="sub" style="color:var(--ink)">' + ev.join('<br>') + '</div>';
-    h += '<div class="lab" style="margin-top:14px">30 天需要的药量 / 现有库存</div>';
+    h += '<div class="lab" style="margin-top:14px">未来 30 天要吃多少药?家里够不够?</div>';
     st.forEach(function (x) {
       var n = need[x.id] || 0, ok = x.tracked ? x.stock >= n : null;
-      h += row(esc(x.name), '', '<b>需 ' + n + ' 粒</b> · ' + (x.tracked ? '现有 ' + x.stock + ' 粒 ' + (ok ? '<span class="tag ok">够</span>' : '<span class="tag miss">差 ' + (n - x.stock) + ' 粒</span>') : '<span class="tag none">没记录药量</span>'));
+      h += row(esc(x.name), '', '<div class="need"><div>30 天共吃 <b>' + n + '</b> 粒</div><div>' + (x.tracked ? '家里现有 ' + x.stock + ' 粒 ' + (ok ? '<span class="tag ok">够吃</span>' : '<span class="tag miss">还差 ' + (n - x.stock) + ' 粒,要去开药</span>') : '<span class="tag none">还没填现有药量</span>') + '</div></div>');
     });
     return h + '</div>';
   }
