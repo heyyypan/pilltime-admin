@@ -73,7 +73,7 @@
   }
 
   var pendingOps = function () { var ap = (S && S.applied) || []; return (adminDoc ? adminDoc.ops : []).filter(function (o) { return ap.indexOf(o.id) < 0; }); };
-  var cfgPending = function () { return !!(adminDoc && adminDoc.cfg && adminDoc.cfgAt > (S.cfgAt || 0)); };
+  var cfgPending = function () { return !!(adminDoc && adminDoc.cfg && adminDoc.cfgAt > (S.adminSeen !== undefined ? S.adminSeen : (S.cfgAt || 0))); };
   function ago(ms) {
     var m = Math.round((Date.now() - ms) / 60000);
     if (m < 1) return '刚刚'; if (m < 60) return m + ' 分钟前';
