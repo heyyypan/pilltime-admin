@@ -311,7 +311,7 @@
     savecfg: async function () {
       var r = readCfg(); if (r.bad) return toast(r.bad);
       try {
-        await mutateAdmin(function (doc) { doc.cfg = r.cfg; doc.cfgAt = Date.now(); });
+        await mutateAdmin(function (doc) { doc.cfg = r.cfg; doc.cfgAt = Math.max(Date.now(), (doc.cfgAt || 0) + 1, ((S && S.cfgAt) || 0) + 1); });
         dirty = false; formStarts = null; toast('已保存,等手机同步后生效'); await refresh(true);
       } catch (e) { toast('保存失败:' + describe(e)); }
     }
