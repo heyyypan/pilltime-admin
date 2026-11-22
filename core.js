@@ -348,7 +348,7 @@
     var st = drugStatuses(S, today), td = { d: today, due: [] };
     S.drugs.forEach(function (x, idx) { if (isDue(S, x, today)) td.due.push([idx, x.qty]); });
     return {
-      v: 1, at: now, today: today, td: td, days: days, oth: otherNames(S) || '其他药',
+      v: 1, at: now, today: today, td: td, days: days, oth: otherNames(S) || '其他药', cyc: cycNames(S) || '周期药',
       drugs: st.map(function (x) { return { n: x.name, s: x.tracked ? x.stock : null, dd: x.tracked ? x.doseDays : null }; })
     };
   }
