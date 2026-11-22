@@ -210,9 +210,36 @@
     return out;
   }
 
+  // 哪天该去开药:不再只看未来 60 天(药量大时 60 天内不会“不够”,以前会让“该去医院开药”整条消失)。
+  // 对每种填了药量的药,算出哪天吃不上(runOut),往前推到“剩下的用药日 ≤ 提前天数”的第一天。
+  function refillInfo(S, today) {
+    var taken = isTaken(S, today), from = taken ? addDays(today, 1) : today, best = null, per = [];
+    S.drugs.forEach(function (drug) {
+      if (drug.stock == null) return;
+      var r = leftFrom(S, drug, from, drug.stock);
+      if (!r.runOut) return; // 800 天都够
+      var cnt = 0, d = addDays(r.runOut, -1), low = today;
+      for (var i = 0; i < 900; i++) {
+        if (d < today) break;
+        if (d >= from && isDue(S, drug, d)) cnt++;
+        if (cnt > S.settings.refillDays) { low = addDays(d, 1); break; }
+        d = addDays(d, -1);
+      }
+      per.push({ drug: drug, low: low, runOut: r.runOut });
+      if (!best || low < best) best = low;
+    });
+    if (!best) return null;
+    var items = per.filter(function (x) { return x.low <= best; }).map(function (x) {
+      var n = 0, d = best < from ? from : best;
+      while (d < x.runOut) { if (isDue(S, x.drug, d)) n++; d = addDays(d, 1); }
+      return { drug: x.drug, left: { doseDays: n, runOut: x.runOut } };
+    });
+    return { day: best, items: items };
+  }
+
   function firstLowDay(S, today) {
-    var low = lowDays(S, today, 60), keys = Object.keys(low).sort();
-    return keys.length ? keys[0] : null;
+    var r = refillInfo(S, today);
+    return r ? r.day : null;
   }
 
   /* ───── 文案 ───── */
@@ -310,12 +337,29 @@
     return { today: td, followMin: st.followMin, followMax: st.followMax, alarmMode: st.alarmMode !== false, snoozeMin: st.snoozeMin || 10, alarms: alarms };
   }
 
+  // 桌面小组件快照:前 45 天到后 75 天每天的状态(ph 0 未开始/1 用药期/2 停药期;k 1 已打卡/0 没打/-1 不用吃/-2 首次使用前)
+  function widgetSnap(S, now) {
+    var today = dstr(new Date(now)), days = [], i, d, ph, due, k;
+    for (i = -45; i <= 75; i++) {
+      d = addDays(today, i); ph = phase(S, d); due = dueDrugs(S, d);
+      k = !due.length ? -1 : d < S.first ? -2 : (isTaken(S, d) ? 1 : 0);
+      days.push([d, ph.before ? 0 : ph.on ? 1 : 2, k, due.map(function (x) { return x.name + x.qty + '粒'; }).join('、')]);
+    }
+    var st = drugStatuses(S, today), td = { d: today, due: [] };
+    S.drugs.forEach(function (x, idx) { if (isDue(S, x, today)) td.due.push([idx, x.qty]); });
+    return {
+      v: 1, at: now, today: today, td: td, days: days,
+      drugs: st.map(function (x) { return { n: x.name, s: x.tracked ? x.stock : null, dd: x.tracked ? x.doseDays : null }; })
+    };
+  }
+
   return {
+    widgetSnap: widgetSnap,
     pad: pad, dstr: dstr, dparse: dparse, addDays: addDays, diffDays: diffDays, atTime: atTime, mdText: mdText,
     defaults: defaults, normalize: normalize, phase: phase, transition: transition, nextEvents: nextEvents, nextOnAfter: nextOnAfter,
     cfgOf: cfgOf, applyCfg: applyCfg, applyOps: applyOps,
     isDue: isDue, dueDrugs: dueDrugs, isTaken: isTaken, checkin: checkin, undo: undo,
-    leftFrom: leftFrom, drugStatuses: drugStatuses, lowDays: lowDays, firstLowDay: firstLowDay,
+    refillInfo: refillInfo, leftFrom: leftFrom, drugStatuses: drugStatuses, lowDays: lowDays, firstLowDay: firstLowDay,
     doseList: doseList, remindText: remindText, cycNames: cycNames, otherNames: otherNames,
     weekView: weekView, monthView: monthView, buildPlan: buildPlan
   };
