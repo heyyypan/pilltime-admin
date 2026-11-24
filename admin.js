@@ -215,7 +215,9 @@
     offs.forEach(function (x, k) { evs.push({ d: x, off: true, next: k > 0 }); });
     ons.forEach(function (x) { evs.push({ d: x, off: false }); });
     evs.sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; });
+    var seenOn = false;
     evs.forEach(function (x) {
+      if (!x.off) seenOn = true; else if (seenOn) x.next = true; // 恢复用药之后的停药期,都是「下一个停药期」
       var tom = C.diffDays(x.d, t) === 1 ? ' 明天' : '';
       ev.push((x.next ? '下一个停药期 ' : '') + '<b>' + md(x.d) + '</b>' + tom + (x.off ? ' 开始停药休息' : ' 恢复用药'));
     });
