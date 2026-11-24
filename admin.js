@@ -114,7 +114,7 @@
     else a = ['未打卡(等待中)', 'a', '应吃:' + C.doseList(due)];
     // 周期
     if (ph.before) b = ['周期还没开始', 'p', cyc + ' 从 ' + md(S.settings.cycleStarts.slice().sort()[0] || t) + ' 开始'];
-    else if (ph.on) b = [cyc + '·第<span class="nn">' + ph.cycleDay + '</span>天(用药期)', 'p', ev.offStart ? '还有 ' + C.diffDays(ev.offStart, t) + ' 天进入停药休息期(' + md(ev.offStart) + ')' : '用药期'];
+    else if (ph.on) b = [cyc + '·第<span class="nn">' + ph.cycleDay + '</span>天(用药期)', 'p', ev.offStart ? (C.diffDays(ev.offStart, t) === 1 ? '明天就是停药休息期哦(' + md(ev.offStart) + ')' : '还有 ' + C.diffDays(ev.offStart, t) + ' 天进入停药休息期(' + md(ev.offStart) + ')') : '用药期'];
     else b = [cyc + '·停药期·第<span class="nn">' + (ph.cycleDay - S.settings.onDays) + '</span>天', 'g', ev.onStart ? md(ev.onStart) + ' 恢复用药(还有 ' + C.diffDays(ev.onStart, t) + ' 天)' : '停药期'];
     // 拿药
     var st = C.drugStatuses(S, t), low = st.filter(function (x) { return x.tracked && x.low; }), tr = st.filter(function (x) { return x.tracked; });
@@ -211,9 +211,14 @@
       h += '<div class="md ' + x.st + (x.d === t ? ' today' : '') + '"><b>' + Number(x.d.slice(8)) + '</b>' + mk + '</div>';
     });
     h += '</div><div class="legend"><span><i class="lg on"></i>用药</span><span><i class="lg off"></i>停药</span></div>';
-    var ev = [];
-    offs.forEach(function (x) { ev.push('<b>' + md(x) + '</b> 开始停药休息'); });
-    ons.forEach(function (x) { ev.push('<b>' + md(x) + '</b> 恢复用药'); });
+    var ev = [], evs = [];
+    offs.forEach(function (x, k) { evs.push({ d: x, off: true, next: k > 0 }); });
+    ons.forEach(function (x) { evs.push({ d: x, off: false }); });
+    evs.sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; });
+    evs.forEach(function (x) {
+      var tom = C.diffDays(x.d, t) === 1 ? ' 明天' : '';
+      ev.push((x.next ? '下一个停药期 ' : '') + '<b>' + md(x.d) + '</b>' + tom + (x.off ? ' 开始停药休息' : ' 恢复用药'));
+    });
     if (ev.length) h += '<div class="sub" style="color:var(--ink)">' + ev.join('<br>') + '</div>';
     h += '<div class="note" style="margin-top:14px">停药休息的日子不吃瑞波西利,所以不是整整 30 天都要吃;今天如果已经打卡,今天就不再算。</div><div class="lab" style="margin-top:0">要准备多少药(按今天起 30 天算)</div>';
     st.forEach(function (x) {
