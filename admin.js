@@ -224,8 +224,8 @@
     if (ev.length) h += '<div class="sub" style="color:var(--ink)">' + ev.join('<br>') + '</div>';
     h += '<div class="note" style="margin-top:14px">停药休息的日子不吃瑞波西利,所以不是整整 30 天都要吃;今天如果已经打卡,今天就不再算。</div><div class="lab" style="margin-top:0">要准备多少药(按今天起 30 天算)</div>';
     st.forEach(function (x) {
-      var n = need[x.id] || 0, ok = x.tracked ? x.stock >= n : null;
-      h += row(esc(x.name), '', '<div class="need"><div>每天 ' + (qd[x.id] || x.qty) + ' 粒 × ' + (nd[x.id] || 0) + ' 个吃药日 = <b>' + n + '</b> 粒</div><div>' + (x.tracked ? '家里现有 ' + x.stock + ' 粒 ' + (ok ? '<span class="tag ok">够吃</span>' : '<span class="tag miss">还差 ' + (n - x.stock) + ' 粒,要去开药</span>') : '<span class="tag none">还没填现有药量</span>') + '</div></div>');
+      var n = need[x.id] || 0, rd = S.settings.refillDays; // 按「药只够吃几天时提醒开药」的设置判断:≤x 天要去开药,x+3 天内药量不足
+      h += row(esc(x.name), '', '<div class="need"><div>每天 ' + (qd[x.id] || x.qty) + ' 粒 × ' + (nd[x.id] || 0) + ' 个吃药日 = <b>' + n + '</b> 粒</div><div>' + (x.tracked ? '家里现有 ' + x.stock + ' 粒 ' + (x.doseDays <= rd ? '<span class="tag miss">要去开药</span>' : x.doseDays <= rd + 3 ? '<span class="tag wait">药量不足</span>' : '<span class="tag ok">够吃</span>') : '<span class="tag none">还没填现有药量</span>') + '</div></div>');
     });
     return h + '</div>';
   }
